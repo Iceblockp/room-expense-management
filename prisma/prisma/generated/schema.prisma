@@ -1,0 +1,121 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./prisma/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  password  String
+  image     String?
+  createdAt DateTime @default(now())
+
+  memberships     Membership[]
+  expenses        Expense[]
+  settlementsFrom Settlement[] @relation("SettlementFromUser")
+  settlementsTo   Settlement[] @relation("SettlementToUser")
+
+  @@map("users")
+}
+
+model Room {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  memberships Membership[]
+  expenses    Expense[]
+  rounds      Round[]
+  settlements Settlement[]
+
+  @@map("rooms")
+}
+
+model Membership {
+  id       String   @id @default(cuid())
+  userId   String
+  roomId   String
+  role     Role     @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId])
+  @@map("memberships")
+}
+
+model Round {
+  id        String      @id @default(cuid())
+  roomId    String
+  status    RoundStatus @default(OPEN)
+  createdAt DateTime    @default(now())
+  clearedAt DateTime?
+
+  room        Room         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  expenses    Expense[]
+  settlements Settlement[]
+
+  @@map("rounds")
+}
+
+model Expense {
+  id        String   @id @default(cuid())
+  roomId    String
+  roundId   String
+  payerId   String
+  title     String
+  amount    Decimal  @db.Decimal(10, 2)
+  notes     String?
+  createdAt DateTime @default(now())
+  createdBy String
+
+  room  Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  payer User  @relation(fields: [payerId], references: [id], onDelete: Cascade)
+
+  @@map("expenses")
+}
+
+model Settlement {
+  id         String           @id @default(cuid())
+  roomId     String
+  roundId    String
+  fromUserId String
+  toUserId   String
+  amount     Decimal          @db.Decimal(10, 2)
+  status     SettlementStatus @default(PENDING)
+  createdAt  DateTime         @default(now())
+
+  room     Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  round    Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  fromUser User  @relation("SettlementFromUser", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User  @relation("SettlementToUser", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@map("settlements")
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum RoundStatus {
+  OPEN
+  CLEARED
+}
+
+enum SettlementStatus {
+  PENDING
+  PAID
+  CONFIRMED
+}
